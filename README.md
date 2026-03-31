@@ -2,19 +2,35 @@
 
 A lightweight OSINT command-line tool for discovering verified email addresses via the [keys.openpgp.org](https://keys.openpgp.org) keyserver.
 
-When a person uploads a PGP key to this keyserver and verifies their email address, that association becomes publicly searchable. This tool queries the keyserver by name or email address and extracts any verified identity information attached to matching keys.
+When a person uploads a PGP key and verifies their email address with the keyserver, that association becomes publicly queryable. This tool queries the keyserver by email address, fingerprint, or key ID and extracts any verified identity information attached to the matching key.
 
 ---
 
 ## Why this is useful
 
-Unlike most email lookup methods, addresses returned by this keyserver are **verified** — the owner clicked a confirmation link. A result here is strong signal that the address is real and in active use. Subjects who have keys published tend to be developers, security researchers, open source contributors, journalists, and privacy-conscious professionals.
+Unlike most email lookup methods, addresses returned by this keyserver are **verified** — the owner clicked a confirmation link to confirm ownership. A result here is strong signal that the address is real and in active use. Subjects who have keys published tend to be developers, security researchers, open source contributors, journalists, and privacy-conscious professionals.
 
 This tool is most effective as a **corroboration layer** in a broader workflow:
 
-- Find a PGP fingerprint on a subject's GitHub profile, personal site, or forum signature
-- Search that fingerprint (or their name/suspected email) here to surface the verified address
+- Find a PGP fingerprint or key ID on a subject's GitHub profile, personal site, or forum signature
+- Query it here to retrieve the verified email address attached to that key
 - Feed confirmed addresses into breach checkers, domain recon, or other OSINT pipelines
+
+Alternatively, if you have a suspected email address, query it directly to confirm it is real and associated with a PGP key.
+
+---
+
+## Accepted query types
+
+The keyserver VKS API does not support name search. The following query types are accepted:
+
+| Type | Format | Example |
+|------|--------|---------|
+| Email address | `user@domain.tld` | `jane@protonmail.com` |
+| PGP fingerprint | 40 hex characters | `8E8C33FA4626337976D97978069C0C348DD82C19` |
+| Key ID | 16 hex characters | `069C0C348DD82C19` |
+
+The `0x` prefix is accepted and stripped automatically for fingerprints and key IDs.
 
 ---
 
@@ -33,7 +49,7 @@ pip install requests pgpy
 ## Installation
 
 ```bash
-git clone https://github.com/denniskeefe/pgp_email_lookup.git
+git clone https://github.com/yourusername/pgp_email_lookup.git
 cd pgp_email_lookup
 pip install requests pgpy
 ```
@@ -44,25 +60,29 @@ No virtual environment required for basic use.
 
 ## Usage
 
-### Search by name
-
-```bash
-python3 pgp_email_lookup.py "Jane Smith"
-```
-
-### Search by email address
+### Lookup by email address
 
 ```bash
 python3 pgp_email_lookup.py "jane@protonmail.com"
 ```
 
-### Multiple queries in one run
+### Lookup by fingerprint
 
 ```bash
-python3 pgp_email_lookup.py "jane@protonmail.com" "john@example.com" "Bob Smith"
+python3 pgp_email_lookup.py "8E8C33FA4626337976D97978069C0C348DD82C19"
 ```
 
-Names and email addresses can be mixed freely in the same command.
+### Lookup by key ID
+
+```bash
+python3 pgp_email_lookup.py "069C0C348DD82C19"
+```
+
+### Multiple targets in one run
+
+```bash
+python3 pgp_email_lookup.py "jane@protonmail.com" "john@example.com" "8E8C33FA4626337976D97978069C0C348DD82C19"
+```
 
 ---
 
@@ -79,7 +99,7 @@ Names and email addresses can be mixed freely in the same command.
 
 ```bash
 # Save results to a file
-python3 pgp_email_lookup.py "Jane Smith" --output results.txt
+python3 pgp_email_lookup.py "jane@protonmail.com" --output results.txt
 
 # JSON output — good for piping into other tools
 python3 pgp_email_lookup.py "jane@protonmail.com" --json
@@ -88,7 +108,10 @@ python3 pgp_email_lookup.py "jane@protonmail.com" --json
 python3 pgp_email_lookup.py "jane@protonmail.com" "john@example.com" --output results.txt
 
 # No color for clean log output
-python3 pgp_email_lookup.py "Jane Smith" --no-color
+python3 pgp_email_lookup.py "jane@protonmail.com" --no-color
+
+# Show raw PGP key block in output
+python3 pgp_email_lookup.py "8E8C33FA4626337976D97978069C0C348DD82C19" --raw
 ```
 
 ---
@@ -104,7 +127,7 @@ Searching: jane@protonmail.com
 Query: jane@protonmail.com
 Keys found: 1
 
-Key 1  A1B2C3D4E5F6...  [active]
+Key 1  A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2  [active]
   Created: 2021-03-14   Expires: no expiry
   User IDs:
     + Jane Smith <jane@protonmail.com>
@@ -121,19 +144,23 @@ Confirmed email addresses (1):
 
 The tool automatically selects the correct keyserver endpoint based on input type:
 
-- **Email address** → `/vks/v1/by-email/` (exact lookup)
-- **Name or other query** → `/vks/v1/search` (full-text search)
+| Query type | Endpoint |
+|------------|----------|
+| Email address | `/vks/v1/by-email/<address>` |
+| Fingerprint | `/vks/v1/by-fingerprint/<FINGERPRINT>` |
+| Key ID | `/vks/v1/by-keyid/<KEY-ID>` |
 
-No configuration needed.
+No configuration needed. Unsupported input types return an error immediately without hitting the server.
 
 ---
 
 ## Limitations
 
 - Only returns results for subjects who have uploaded a PGP key **and** verified their email with the keyserver
+- Email lookups are exact match only — partial addresses are not accepted
 - Coverage skews toward technical users — most subjects will return no results
-- The keyserver does not support bulk enumeration or wildcard queries
-- Name searches require sufficient specificity — very short or common queries may return a 400 error; use a full name or add context
+- The keyserver does not support name search, wildcard queries, or bulk enumeration
+- Email lookups are rate limited to one request per minute by the keyserver; fingerprint and key ID lookups are limited to five per second
 
 ---
 
