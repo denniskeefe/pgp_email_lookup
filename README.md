@@ -33,7 +33,7 @@ pip install requests pgpy
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/pgp_email_lookup.git
+git clone https://github.com/denniskeefe/pgp_email_lookup.git
 cd pgp_email_lookup
 pip install requests pgpy
 ```
